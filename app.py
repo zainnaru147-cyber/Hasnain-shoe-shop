@@ -2,16 +2,16 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_RIGHT
-from reportlab.platypus import (
-    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-)
+from reportlab.lib.enums import TA_CENTER
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+
 
 # =========================================================
-# PAGE SETTINGS
+# PAGE CONFIGURATION
 # =========================================================
 
 st.set_page_config(
@@ -21,59 +21,50 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+
 # =========================================================
 # CUSTOM CSS
 # =========================================================
 
-st.markdown("""
-<style>
+st.markdown(
+    """
+    <style>
+        .hero {
+            padding: 30px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #111827, #374151);
+            color: white;
+            margin-bottom: 25px;
+        }
 
-.main {
-    background-color: #f5f7fa;
-}
+        .hero h1 {
+            font-size: 42px;
+            margin-bottom: 5px;
+        }
 
-.hero {
-    padding: 30px;
-    border-radius: 20px;
-    background: linear-gradient(135deg, #111827, #374151);
-    color: white;
-    margin-bottom: 25px;
-}
+        .hero p {
+            color: #d1d5db;
+        }
 
-.hero h1 {
-    font-size: 42px;
-    margin-bottom: 5px;
-}
+        .price {
+            font-size: 22px;
+            font-weight: bold;
+        }
 
-.hero p {
-    color: #d1d5db;
-}
+        .vip-box {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            border: 1px solid #dddddd;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-.product-card {
-    background: white;
-    padding: 18px;
-    border-radius: 16px;
-    border: 1px solid #e5e7eb;
-    margin-bottom: 15px;
-}
-
-.price {
-    font-size: 22px;
-    font-weight: bold;
-}
-
-.vip-box {
-    background: white;
-    padding: 30px;
-    border-radius: 20px;
-    border: 1px solid #ddd;
-}
-
-</style>
-""", unsafe_allow_html=True)
 
 # =========================================================
-# 100 SHOES
+# PRODUCT DATA - 100 SHOES
 # =========================================================
 
 brands = [
@@ -118,25 +109,27 @@ colors_list = [
 products = []
 
 for i in range(100):
-
     brand = brands[i % len(brands)]
     style = styles[i % len(styles)]
-    color = colors_list[i % len(colors_list)]
+    shoe_color = colors_list[i % len(colors_list)]
 
     price = 2500 + (i * 275)
 
-    products.append({
-        "id": i + 1001,
-        "name": f"{brand} {style} {i+1:03d}",
-        "brand": brand,
-        "category": "Men" if i % 2 == 0 else "Women",
-        "color": color,
-        "size": 39 + (i % 7),
-        "price": price,
-        "stock": 5 + (i % 20)
-    })
+    products.append(
+        {
+            "id": i + 1001,
+            "name": f"{brand} {style} {i + 1:03d}",
+            "brand": brand,
+            "category": "Men" if i % 2 == 0 else "Women",
+            "color": shoe_color,
+            "size": 39 + (i % 7),
+            "price": price,
+            "stock": 5 + (i % 20)
+        }
+    )
 
 catalog = pd.DataFrame(products)
+
 
 # =========================================================
 # SESSION STATE
@@ -154,8 +147,9 @@ if "last_invoice" not in st.session_state:
 if "checkout" not in st.session_state:
     st.session_state.checkout = {}
 
+
 # =========================================================
-# FUNCTIONS
+# HELPER FUNCTIONS
 # =========================================================
 
 def money(value):
@@ -164,27 +158,22 @@ def money(value):
 
 def add_to_cart(product, quantity):
 
-    existing = None
-
     for item in st.session_state.cart:
 
         if item["id"] == int(product["id"]):
-            existing = item
-            break
 
-    if existing:
+            item["qty"] += quantity
+            return
 
-        existing["qty"] += quantity
-
-    else:
-
-        st.session_state.cart.append({
+    st.session_state.cart.append(
+        {
             "id": int(product["id"]),
             "name": product["name"],
             "size": int(product["size"]),
             "price": float(product["price"]),
-            "qty": quantity
-        })
+            "qty": int(quantity)
+        }
+    )
 
 
 def remove_from_cart(product_id):
@@ -205,7 +194,7 @@ def cart_total():
 
 
 # =========================================================
-# PDF BILL
+# PDF INVOICE
 # =========================================================
 
 def create_pdf(
@@ -235,24 +224,23 @@ def create_pdf(
     styles = getSampleStyleSheet()
 
     title_style = ParagraphStyle(
-        "title",
+        "InvoiceTitle",
         parent=styles["Title"],
         alignment=TA_CENTER,
-        fontSize=25
+        fontSize=24
     )
 
     center_style = ParagraphStyle(
-        "center",
+        "CenterText",
         parent=styles["Normal"],
         alignment=TA_CENTER
     )
 
     story = []
 
-    # Store Header
     story.append(
         Paragraph(
-            "👟 SHOE VAULT",
+            "SHOE VAULT",
             title_style
         )
     )
@@ -266,21 +254,21 @@ def create_pdf(
 
     story.append(Spacer(1, 15))
 
+    invoice_info = f"""
+    <b>Invoice:</b> #{invoice_number}<br/>
+    <b>Date:</b> {datetime.now().strftime('%d-%m-%Y %I:%M %p')}<br/>
+    <b>Customer:</b> {customer}<br/>
+    <b>Phone:</b> {phone if phone else '-'}
+    """
+
     story.append(
         Paragraph(
-            f"""
-            <b>Invoice:</b> #{invoice_number}<br/>
-            <b>Date:</b> {datetime.now().strftime('%d-%m-%Y %I:%M %p')}<br/>
-            <b>Customer:</b> {customer}<br/>
-            <b>Phone:</b> {phone if phone else '-'}
-            """,
+            invoice_info,
             styles["Normal"]
         )
     )
 
     story.append(Spacer(1, 15))
-
-    # Table
 
     table_data = [
         [
@@ -293,116 +281,109 @@ def create_pdf(
         ]
     ]
 
-    for index, item in enumerate(cart, 1):
+    for index, item in enumerate(cart, start=1):
 
         amount = item["price"] * item["qty"]
 
-        table_data.append([
-            index,
-            item["name"],
-            item["size"],
-            item["qty"],
-            money(item["price"]),
-            money(amount)
-        ])
+        table_data.append(
+            [
+                index,
+                item["name"],
+                item["size"],
+                item["qty"],
+                money(item["price"]),
+                money(amount)
+            ]
+        )
 
-    table_data.extend([
-        ["", "", "", "", "Subtotal", money(subtotal)],
-        ["", "", "", "", "Discount", money(discount)],
-        ["", "", "", "", "Tax", money(tax)],
-        ["", "", "", "", "TOTAL", money(total)]
-    ])
-
-    table = Table(
-        table_data,
-        colWidths=[
-            25,
-            190,
-            40,
-            35,
-            80,
-            85
+    table_data.extend(
+        [
+            ["", "", "", "", "Subtotal", money(subtotal)],
+            ["", "", "", "", "Discount", money(discount)],
+            ["", "", "", "", "Tax", money(tax)],
+            ["", "", "", "", "TOTAL", money(total)]
         ]
     )
 
+    table = Table(
+        table_data,
+        colWidths=[25, 190, 40, 35, 80, 85]
+    )
+
     table.setStyle(
-        TableStyle([
-            (
-                "BACKGROUND",
-                (0, 0),
-                (-1, 0),
-                colors.HexColor("#111827")
-            ),
-
-            (
-                "TEXTCOLOR",
-                (0, 0),
-                (-1, 0),
-                colors.white
-            ),
-
-            (
-                "FONTNAME",
-                (0, 0),
-                (-1, 0),
-                "Helvetica-Bold"
-            ),
-
-            (
-                "GRID",
-                (0, 0),
-                (-1, -1),
-                0.5,
-                colors.grey
-            ),
-
-            (
-                "ALIGN",
-                (2, 1),
-                (-1, -1),
-                "RIGHT"
-            ),
-
-            (
-                "BACKGROUND",
-                (0, -4),
-                (-1, -1),
-                colors.HexColor("#f3f4f6")
-            ),
-
-            (
-                "FONTNAME",
-                (-2, -1),
-                (-1, -1),
-                "Helvetica-Bold"
-            ),
-
-            (
-                "TOPPADDING",
-                (0, 0),
-                (-1, -1),
-                7
-            ),
-
-            (
-                "BOTTOMPADDING",
-                (0, 0),
-                (-1, -1),
-                7
-            )
-        ])
+        TableStyle(
+            [
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.HexColor("#111827")
+                ),
+                (
+                    "TEXTCOLOR",
+                    (0, 0),
+                    (-1, 0),
+                    colors.white
+                ),
+                (
+                    "FONTNAME",
+                    (0, 0),
+                    (-1, 0),
+                    "Helvetica-Bold"
+                ),
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.5,
+                    colors.grey
+                ),
+                (
+                    "ALIGN",
+                    (2, 1),
+                    (-1, -1),
+                    "RIGHT"
+                ),
+                (
+                    "BACKGROUND",
+                    (0, -4),
+                    (-1, -1),
+                    colors.HexColor("#f3f4f6")
+                ),
+                (
+                    "FONTNAME",
+                    (-2, -1),
+                    (-1, -1),
+                    "Helvetica-Bold"
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7
+                )
+            ]
+        )
     )
 
     story.append(table)
 
     story.append(Spacer(1, 15))
 
+    payment_info = f"""
+    <b>Payment Method:</b> {payment_method}<br/>
+    <b>Reference:</b> {reference if reference else '-'}
+    """
+
     story.append(
         Paragraph(
-            f"""
-            <b>Payment Method:</b> {payment_method}<br/>
-            <b>Reference:</b> {reference if reference else '-'}
-            """,
+            payment_info,
             styles["Normal"]
         )
     )
@@ -427,24 +408,22 @@ def create_pdf(
 # HEADER
 # =========================================================
 
-st.markdown("""
-<div class="hero">
+st.markdown(
+    """
+    <div class="hero">
+        <h1>👟 SHOE VAULT</h1>
+        <p>Premium Shoe Store • POS • Billing • Payment • Inventory</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-<h1>👟 SHOE VAULT</h1>
-
-<p>
-Premium Shoe Store • POS • Billing • Payment • Inventory
-</p>
-
-</div>
-""", unsafe_allow_html=True)
 
 # =========================================================
 # SIDEBAR
 # =========================================================
 
 st.sidebar.title("👟 Shoe Vault")
-
 st.sidebar.write("Store Management System")
 
 page = st.sidebar.radio(
@@ -473,8 +452,9 @@ st.sidebar.metric(
     money(cart_total())
 )
 
+
 # =========================================================
-# PRODUCTS
+# PRODUCTS PAGE
 # =========================================================
 
 if page == "🛍️ Products":
@@ -491,14 +471,14 @@ if page == "🛍️ Products":
 
     with col2:
 
-        brand = st.selectbox(
+        selected_brand = st.selectbox(
             "Brand",
             ["All"] + brands
         )
 
     with col3:
 
-        category = st.selectbox(
+        selected_category = st.selectbox(
             "Category",
             ["All", "Men", "Women"]
         )
@@ -515,16 +495,16 @@ if page == "🛍️ Products":
             )
         ]
 
-    if brand != "All":
+    if selected_brand != "All":
 
         view = view[
-            view["brand"] == brand
+            view["brand"] == selected_brand
         ]
 
-    if category != "All":
+    if selected_category != "All":
 
         view = view[
-            view["category"] == category
+            view["category"] == selected_category
         ]
 
     st.write(
@@ -596,7 +576,7 @@ if page == "🛍️ Products":
 
 
 # =========================================================
-# CART
+# CART PAGE
 # =========================================================
 
 elif page == "🛒 Cart":
@@ -639,7 +619,7 @@ elif page == "🛒 Cart":
                     "Qty",
                     min_value=1,
                     max_value=50,
-                    value=item["qty"],
+                    value=int(item["qty"]),
                     key=f"cart_qty_{item['id']}"
                 )
 
@@ -666,7 +646,7 @@ elif page == "🛒 Cart":
 
 
 # =========================================================
-# BILLING
+# BILLING PAGE
 # =========================================================
 
 elif page == "🧾 Billing":
@@ -696,16 +676,17 @@ elif page == "🧾 Billing":
 
         for item in st.session_state.cart:
 
-            rows.append({
-                "Product": item["name"],
-                "Size": item["size"],
-                "Quantity": item["qty"],
-                "Unit Price": money(item["price"]),
-                "Amount": money(
-                    item["price"] *
-                    item["qty"]
-                )
-            })
+            rows.append(
+                {
+                    "Product": item["name"],
+                    "Size": item["size"],
+                    "Quantity": item["qty"],
+                    "Unit Price": money(item["price"]),
+                    "Amount": money(
+                        item["price"] * item["qty"]
+                    )
+                }
+            )
 
         st.dataframe(
             pd.DataFrame(rows),
@@ -717,9 +698,9 @@ elif page == "🧾 Billing":
 
         discount_percent = st.slider(
             "Discount %",
-            0,
-            50,
-            0
+            min_value=0,
+            max_value=50,
+            value=0
         )
 
         discount = (
@@ -737,9 +718,9 @@ elif page == "🧾 Billing":
         )
 
         tax = (
-            (subtotal - discount)
-            * tax_percent
-            / 100
+            (subtotal - discount) *
+            tax_percent /
+            100
         )
 
         total = (
@@ -784,7 +765,7 @@ elif page == "🧾 Billing":
         )
 
         st.info(
-            "اب Payment Center میں جا کر payment complete کریں۔"
+            "Now go to Payment Center to complete payment."
         )
 
 
@@ -802,171 +783,165 @@ elif page == "💳 Payment Center":
             "Cart is empty."
         )
 
+    elif not st.session_state.checkout:
+
+        st.warning(
+            "Please complete the Billing page first."
+        )
+
     else:
 
         checkout = st.session_state.checkout
 
-        if not checkout:
+        total = checkout["total"]
 
-            st.warning(
-                "پہلے Billing page پر جائیں۔"
+        st.markdown(
+            f"""
+            <div class="vip-box">
+                <h2>Amount Payable</h2>
+                <h1>{money(total)}</h1>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.divider()
+
+        payment = st.radio(
+            "Select Payment Method",
+            [
+                "Cash",
+                "JazzCash",
+                "Easypaisa",
+                "Bank Transfer",
+                "Card / Online Payment"
+            ]
+        )
+
+        reference = ""
+
+        if payment == "JazzCash":
+
+            st.subheader("📱 JazzCash")
+
+            st.info(
+                "Demo JazzCash payment screen. "
+                "Real API integration requires merchant credentials."
+            )
+
+            st.text_input(
+                "JazzCash Mobile Number"
+            )
+
+            reference = st.text_input(
+                "JazzCash Transaction ID"
+            )
+
+        elif payment == "Easypaisa":
+
+            st.subheader("📱 Easypaisa")
+
+            st.info(
+                "Demo Easypaisa payment screen. "
+                "Real API integration requires merchant credentials."
+            )
+
+            st.text_input(
+                "Easypaisa Mobile Number"
+            )
+
+            reference = st.text_input(
+                "Easypaisa Transaction ID"
+            )
+
+        elif payment == "Bank Transfer":
+
+            reference = st.text_input(
+                "Bank Transaction ID"
+            )
+
+        elif payment == "Card / Online Payment":
+
+            reference = st.text_input(
+                "Online Payment Reference"
             )
 
         else:
 
-            total = checkout["total"]
+            reference = "CASH"
 
-            st.markdown(
-                f"""
-                <div class="vip-box">
+        if st.button(
+            "✅ Confirm Payment & Generate VIP Bill",
+            type="primary",
+            use_container_width=True
+        ):
 
-                <h2>Amount Payable</h2>
+            if payment != "Cash" and not reference:
 
-                <h1>{money(total)}</h1>
-
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            st.divider()
-
-            payment = st.radio(
-                "Select Payment Method",
-                [
-                    "Cash",
-                    "JazzCash",
-                    "Easypaisa",
-                    "Bank Transfer",
-                    "Card / Online Payment"
-                ]
-            )
-
-            reference = ""
-
-            if payment == "JazzCash":
-
-                st.subheader(
-                    "📱 JazzCash"
-                )
-
-                st.info(
-                    "Demo payment screen. "
-                    "Real JazzCash API integration "
-                    "requires merchant credentials."
-                )
-
-                wallet = st.text_input(
-                    "JazzCash Mobile Number"
-                )
-
-                reference = st.text_input(
-                    "JazzCash Transaction ID"
-                )
-
-            elif payment == "Easypaisa":
-
-                st.subheader(
-                    "📱 Easypaisa"
-                )
-
-                st.info(
-                    "Demo payment screen. "
-                    "Real Easypaisa API integration "
-                    "requires merchant credentials."
-                )
-
-                wallet = st.text_input(
-                    "Easypaisa Mobile Number"
-                )
-
-                reference = st.text_input(
-                    "Easypaisa Transaction ID"
-                )
-
-            elif payment == "Bank Transfer":
-
-                reference = st.text_input(
-                    "Bank Transaction ID"
-                )
-
-            elif payment == "Card / Online Payment":
-
-                reference = st.text_input(
-                    "Online Payment Reference"
+                st.error(
+                    "Please enter the transaction/reference ID."
                 )
 
             else:
 
-                reference = "CASH"
+                invoice = st.session_state.invoice_number
 
-            if st.button(
-                "✅ Confirm Payment & Generate VIP Bill",
-                type="primary",
-                use_container_width=True
-            ):
+                st.session_state.invoice_number += 1
 
-                if payment != "Cash" and not reference:
-
-                    st.error(
-                        "Transaction/Reference ID درج کریں۔"
-                    )
-
-                else:
-
-                    invoice = (
-                        st.session_state.invoice_number
-                    )
-
-                    st.session_state.invoice_number += 1
-
-                    pdf = create_pdf(
-                        invoice,
-                        checkout["customer"],
-                        checkout["phone"],
-                        st.session_state.cart,
-                        checkout["subtotal"],
-                        checkout["discount"],
-                        checkout["tax"],
-                        checkout["total"],
-                        payment,
-                        reference
-                    )
-
-                    st.session_state.last_invoice = {
-                        "invoice": invoice,
-                        "customer": checkout["customer"],
-                        "total": checkout["total"],
-                        "payment": payment,
-                        "reference": reference,
-                        "pdf": pdf.getvalue()
-                    }
-
-                    st.success(
-                        f"Payment successful! Invoice #{invoice} generated."
-                    )
-
-                    st.balloons()
-
-            # Show invoice
-
-            invoice = st.session_state.last_invoice
-
-            if invoice:
-
-                st.divider()
-
-                st.subheader(
-                    f"🧾 VIP Invoice #{invoice['invoice']}"
+                pdf = create_pdf(
+                    invoice,
+                    checkout["customer"],
+                    checkout["phone"],
+                    st.session_state.cart,
+                    checkout["subtotal"],
+                    checkout["discount"],
+                    checkout["tax"],
+                    checkout["total"],
+                    payment,
+                    reference
                 )
 
-                col1, col2, col3 = st.columns(3)
+                st.session_state.last_invoice = {
+                    "invoice": invoice,
+                    "customer": checkout["customer"],
+                    "total": checkout["total"],
+                    "payment": payment,
+                    "reference": reference,
+                    "pdf": pdf.getvalue()
+                }
 
-                col1.metric(
-                    "Customer",
-                    invoice["customer"]
+                st.success(
+                    f"Payment successful! Invoice #{invoice} generated."
                 )
 
-                col2.metric(
-                    "Payment",
-           
+                st.balloons()
+
+        invoice = st.session_state.last_invoice
+
+        if invoice:
+
+            st.divider()
+
+            st.subheader(
+                f"🧾 VIP Invoice #{invoice['invoice']}"
+            )
+
+            col1, col2, col3 = st.columns(3)
+
+            col1.metric(
+                "Customer",
+                invoice["customer"]
+            )
+
+            col2.metric(
+                "Payment",
+                invoice["payment"]
+            )
+
+            col3.metric(
+                "Total",
+                money(invoice["total"])
+            )
+
+            st.download_button(
+    
