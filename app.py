@@ -943,5 +943,5 @@ elif page == "💳 Payment Center":
                 money(invoice["total"])
             )
 
-            st.download_button(
+            st.download_button()
     
