@@ -7,56 +7,51 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.platypus import Paragraph, Spacer
 
 
 # =========================================================
-# PAGE CONFIGURATION
+# PAGE SETTINGS
 # =========================================================
 
 st.set_page_config(
-    page_title="Shoe Vault POS",
+    page_title="Shoe Vault",
     page_icon="👟",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
 
 # =========================================================
-# CUSTOM CSS
+# CSS
 # =========================================================
 
 st.markdown(
     """
     <style>
-        .hero {
-            padding: 30px;
-            border-radius: 20px;
-            background: linear-gradient(135deg, #111827, #374151);
-            color: white;
-            margin-bottom: 25px;
-        }
 
-        .hero h1 {
-            font-size: 42px;
-            margin-bottom: 5px;
-        }
+    .main-title {
+        font-size: 42px;
+        font-weight: bold;
+    }
 
-        .hero p {
-            color: #d1d5db;
-        }
+    .sub-title {
+        color: #666666;
+        font-size: 18px;
+    }
 
-        .price {
-            font-size: 22px;
-            font-weight: bold;
-        }
+    .price {
+        font-size: 22px;
+        font-weight: bold;
+    }
 
-        .vip-box {
-            background: white;
-            padding: 30px;
-            border-radius: 20px;
-            border: 1px solid #dddddd;
-        }
+    .bill-box {
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid #dddddd;
+        background-color: #fafafa;
+    }
+
     </style>
     """,
     unsafe_allow_html=True
@@ -64,7 +59,7 @@ st.markdown(
 
 
 # =========================================================
-# PRODUCT DATA - 100 SHOES
+# PRODUCT DATABASE - 100 PRODUCTS
 # =========================================================
 
 brands = [
@@ -80,20 +75,20 @@ brands = [
     "Hush Puppies"
 ]
 
-styles = [
-    "Runner",
+product_types = [
+    "Running Shoe",
+    "Sports Shoe",
+    "Casual Shoe",
+    "Sneaker",
     "Trainer",
-    "Classic",
-    "Court",
-    "Street",
-    "Flex",
-    "Comfort",
-    "Sport",
-    "Casual",
-    "Pro"
+    "Sandal",
+    "Slipper",
+    "Boot",
+    "Formal Shoe",
+    "Loafer"
 ]
 
-colors_list = [
+colors = [
     "Black",
     "White",
     "Blue",
@@ -109,22 +104,24 @@ colors_list = [
 products = []
 
 for i in range(100):
-    brand = brands[i % len(brands)]
-    style = styles[i % len(styles)]
-    shoe_color = colors_list[i % len(colors_list)]
 
-    price = 2500 + (i * 275)
+    brand = brands[i % len(brands)]
+    product_type = product_types[i % len(product_types)]
+    color = colors[i % len(colors)]
+
+    price = 2500 + (i * 250)
 
     products.append(
         {
-            "id": i + 1001,
-            "name": f"{brand} {style} {i + 1:03d}",
-            "brand": brand,
-            "category": "Men" if i % 2 == 0 else "Women",
-            "color": shoe_color,
-            "size": 39 + (i % 7),
-            "price": price,
-            "stock": 5 + (i % 20)
+            "ID": i + 1,
+            "Product": f"{brand} {product_type} {i + 1}",
+            "Brand": brand,
+            "Type": product_type,
+            "Gender": "Men" if i % 2 == 0 else "Women",
+            "Color": color,
+            "Size": 39 + (i % 7),
+            "Price": price,
+            "Stock": 5 + (i % 15)
         }
     )
 
@@ -141,37 +138,36 @@ if "cart" not in st.session_state:
 if "invoice_number" not in st.session_state:
     st.session_state.invoice_number = 10001
 
-if "last_invoice" not in st.session_state:
-    st.session_state.last_invoice = None
-
-if "checkout" not in st.session_state:
-    st.session_state.checkout = {}
+if "last_bill" not in st.session_state:
+    st.session_state.last_bill = None
 
 
 # =========================================================
-# HELPER FUNCTIONS
+# FUNCTIONS
 # =========================================================
 
-def money(value):
-    return f"Rs. {value:,.0f}"
+def money(amount):
+    return f"Rs. {amount:,.0f}"
 
 
 def add_to_cart(product, quantity):
 
+    product_id = int(product["ID"])
+
     for item in st.session_state.cart:
 
-        if item["id"] == int(product["id"]):
+        if item["ID"] == product_id:
 
-            item["qty"] += quantity
+            item["Quantity"] += quantity
             return
 
     st.session_state.cart.append(
         {
-            "id": int(product["id"]),
-            "name": product["name"],
-            "size": int(product["size"]),
-            "price": float(product["price"]),
-            "qty": int(quantity)
+            "ID": product_id,
+            "Product": product["Product"],
+            "Size": int(product["Size"]),
+            "Price": float(product["Price"]),
+            "Quantity": int(quantity)
         }
     )
 
@@ -181,24 +177,24 @@ def remove_from_cart(product_id):
     st.session_state.cart = [
         item
         for item in st.session_state.cart
-        if item["id"] != product_id
+        if item["ID"] != product_id
     ]
 
 
-def cart_total():
+def cart_subtotal():
 
     return sum(
-        item["price"] * item["qty"]
+        item["Price"] * item["Quantity"]
         for item in st.session_state.cart
     )
 
 
 # =========================================================
-# PDF INVOICE
+# PDF BILL
 # =========================================================
 
-def create_pdf(
-    invoice_number,
+def make_pdf(
+    invoice_no,
     customer,
     phone,
     cart,
@@ -206,32 +202,31 @@ def create_pdf(
     discount,
     tax,
     total,
-    payment_method,
-    reference
+    payment
 ):
 
     buffer = BytesIO()
 
-    document = SimpleDocTemplate(
+    doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        rightMargin=35,
-        leftMargin=35,
-        topMargin=35,
-        bottomMargin=35
+        rightMargin=30,
+        leftMargin=30,
+        topMargin=30,
+        bottomMargin=30
     )
 
     styles = getSampleStyleSheet()
 
     title_style = ParagraphStyle(
-        "InvoiceTitle",
+        "TitleStyle",
         parent=styles["Title"],
         alignment=TA_CENTER,
         fontSize=24
     )
 
     center_style = ParagraphStyle(
-        "CenterText",
+        "CenterStyle",
         parent=styles["Normal"],
         alignment=TA_CENTER
     )
@@ -247,15 +242,17 @@ def create_pdf(
 
     story.append(
         Paragraph(
-            "PREMIUM FOOTWEAR STORE",
+            "Premium Footwear Store",
             center_style
         )
     )
 
-    story.append(Spacer(1, 15))
+    story.append(
+        Spacer(1, 15)
+    )
 
-    invoice_info = f"""
-    <b>Invoice:</b> #{invoice_number}<br/>
+    information = f"""
+    <b>Invoice:</b> #{invoice_no}<br/>
     <b>Date:</b> {datetime.now().strftime('%d-%m-%Y %I:%M %p')}<br/>
     <b>Customer:</b> {customer}<br/>
     <b>Phone:</b> {phone if phone else '-'}
@@ -263,12 +260,14 @@ def create_pdf(
 
     story.append(
         Paragraph(
-            invoice_info,
+            information,
             styles["Normal"]
         )
     )
 
-    story.append(Spacer(1, 15))
+    story.append(
+        Spacer(1, 15)
+    )
 
     table_data = [
         [
@@ -276,33 +275,40 @@ def create_pdf(
             "Product",
             "Size",
             "Qty",
-            "Unit Price",
+            "Price",
             "Amount"
         ]
     ]
 
-    for index, item in enumerate(cart, start=1):
+    for number, item in enumerate(cart, 1):
 
-        amount = item["price"] * item["qty"]
+        amount = item["Price"] * item["Quantity"]
 
         table_data.append(
             [
-                index,
-                item["name"],
-                item["size"],
-                item["qty"],
-                money(item["price"]),
+                number,
+                item["Product"],
+                item["Size"],
+                item["Quantity"],
+                money(item["Price"]),
                 money(amount)
             ]
         )
 
-    table_data.extend(
-        [
-            ["", "", "", "", "Subtotal", money(subtotal)],
-            ["", "", "", "", "Discount", money(discount)],
-            ["", "", "", "", "Tax", money(tax)],
-            ["", "", "", "", "TOTAL", money(total)]
-        ]
+    table_data.append(
+        ["", "", "", "", "Subtotal", money(subtotal)]
+    )
+
+    table_data.append(
+        ["", "", "", "", "Discount", money(discount)]
+    )
+
+    table_data.append(
+        ["", "", "", "", "Tax", money(tax)]
+    )
+
+    table_data.append(
+        ["", "", "", "", "TOTAL", money(total)]
     )
 
     table = Table(
@@ -317,7 +323,7 @@ def create_pdf(
                     "BACKGROUND",
                     (0, 0),
                     (-1, 0),
-                    colors.HexColor("#111827")
+                    colors.black
                 ),
                 (
                     "TEXTCOLOR",
@@ -345,12 +351,6 @@ def create_pdf(
                     "RIGHT"
                 ),
                 (
-                    "BACKGROUND",
-                    (0, -4),
-                    (-1, -1),
-                    colors.HexColor("#f3f4f6")
-                ),
-                (
                     "FONTNAME",
                     (-2, -1),
                     (-1, -1),
@@ -374,21 +374,20 @@ def create_pdf(
 
     story.append(table)
 
-    story.append(Spacer(1, 15))
-
-    payment_info = f"""
-    <b>Payment Method:</b> {payment_method}<br/>
-    <b>Reference:</b> {reference if reference else '-'}
-    """
+    story.append(
+        Spacer(1, 15)
+    )
 
     story.append(
         Paragraph(
-            payment_info,
+            f"<b>Payment Method:</b> {payment}",
             styles["Normal"]
         )
     )
 
-    story.append(Spacer(1, 25))
+    story.append(
+        Spacer(1, 20)
+    )
 
     story.append(
         Paragraph(
@@ -397,11 +396,11 @@ def create_pdf(
         )
     )
 
-    document.build(story)
+    doc.build(story)
 
     buffer.seek(0)
 
-    return buffer
+    return buffer.getvalue()
 
 
 # =========================================================
@@ -409,31 +408,29 @@ def create_pdf(
 # =========================================================
 
 st.markdown(
-    """
-    <div class="hero">
-        <h1>👟 SHOE VAULT</h1>
-        <p>Premium Shoe Store • POS • Billing • Payment • Inventory</p>
-    </div>
-    """,
+    '<div class="main-title">Shoe Vault</div>',
     unsafe_allow_html=True
 )
 
+st.markdown(
+    '<div class="sub-title">Shoe Store • Shopping • Cart • Billing</div>',
+    unsafe_allow_html=True
+)
+
+st.divider()
+
 
 # =========================================================
-# SIDEBAR
+# SIDEBAR MENU
 # =========================================================
 
-st.sidebar.title("👟 Shoe Vault")
-st.sidebar.write("Store Management System")
+st.sidebar.title("Shoe Vault")
 
 page = st.sidebar.radio(
     "Menu",
     [
-        "🛍️ Products",
-        "🛒 Cart",
-        "🧾 Billing",
-        "💳 Payment Center",
-        "📊 Dashboard"
+        "Store",
+        "Dashboard"
     ]
 )
 
@@ -442,266 +439,303 @@ st.sidebar.divider()
 st.sidebar.metric(
     "Cart Items",
     sum(
-        item["qty"]
+        item["Quantity"]
         for item in st.session_state.cart
     )
 )
 
 st.sidebar.metric(
     "Cart Value",
-    money(cart_total())
+    money(cart_subtotal())
 )
 
 
 # =========================================================
-# PRODUCTS PAGE
+# STORE PAGE
 # =========================================================
 
-if page == "🛍️ Products":
+if page == "Store":
 
-    st.header("🛍️ Shoe Collection")
+    st.header("Search Products")
 
-    col1, col2, col3 = st.columns(3)
+    # -----------------------------------------------------
+    # SEARCH
+    # -----------------------------------------------------
+
+    search = st.text_input(
+        "Search",
+        placeholder="Search shoe, sandal, slipper, boot, Nike, Adidas..."
+    )
+
+    col1, col2 = st.columns(2)
 
     with col1:
 
-        search = st.text_input(
-            "🔎 Search Shoe"
+        gender_filter = st.selectbox(
+            "Gender",
+            [
+                "All",
+                "Men",
+                "Women"
+            ]
         )
 
     with col2:
 
-        selected_brand = st.selectbox(
-            "Brand",
-            ["All"] + brands
+        type_filter = st.selectbox(
+            "Product Type",
+            ["All"] + product_types
         )
 
-    with col3:
+    # -----------------------------------------------------
+    # FILTER PRODUCTS
+    # -----------------------------------------------------
 
-        selected_category = st.selectbox(
-            "Category",
-            ["All", "Men", "Women"]
-        )
-
-    view = catalog.copy()
+    result = catalog.copy()
 
     if search:
 
-        view = view[
-            view["name"].str.contains(
-                search,
-                case=False,
+        search_text = search.lower()
+
+        result = result[
+            result["Product"].str.lower().str.contains(
+                search_text,
+                na=False
+            )
+            |
+            result["Brand"].str.lower().str.contains(
+                search_text,
+                na=False
+            )
+            |
+            result["Type"].str.lower().str.contains(
+                search_text,
+                na=False
+            )
+            |
+            result["Color"].str.lower().str.contains(
+                search_text,
                 na=False
             )
         ]
 
-    if selected_brand != "All":
+    if gender_filter != "All":
 
-        view = view[
-            view["brand"] == selected_brand
+        result = result[
+            result["Gender"] == gender_filter
         ]
 
-    if selected_category != "All":
+    if type_filter != "All":
 
-        view = view[
-            view["category"] == selected_category
+        result = result[
+            result["Type"] == type_filter
         ]
 
     st.write(
-        f"Showing **{len(view)}** shoes"
+        f"**{len(result)} products found**"
     )
 
-    for _, product in view.iterrows():
+    # -----------------------------------------------------
+    # PRODUCTS
+    # -----------------------------------------------------
 
-        with st.container(border=True):
+    if len(result) == 0:
 
-            col1, col2, col3, col4 = st.columns(
-                [3, 2, 2, 1]
-            )
+        st.warning(
+            "No product found. Try another search."
+        )
 
-            with col1:
+    else:
 
-                st.markdown(
-                    f"""
-                    ### 👟 {product['name']}
+        for _, product in result.iterrows():
 
-                    **Brand:** {product['brand']}
+            with st.container(border=True):
 
-                    **Category:** {product['category']}
-
-                    **Color:** {product['color']}
-
-                    **Size:** {product['size']}
-                    """
+                col1, col2, col3 = st.columns(
+                    [5, 2, 2]
                 )
 
-            with col2:
+                with col1:
 
-                st.markdown(
-                    f"""
-                    <div class="price">
-                    {money(product['price'])}
-                    </div>
-
-                    Stock: {product['stock']}
-                    """,
-                    unsafe_allow_html=True
-                )
-
-            with col3:
-
-                quantity = st.number_input(
-                    "Quantity",
-                    min_value=1,
-                    max_value=int(product["stock"]),
-                    value=1,
-                    key=f"quantity_{product['id']}"
-                )
-
-            with col4:
-
-                if st.button(
-                    "Add",
-                    key=f"add_{product['id']}"
-                ):
-
-                    add_to_cart(
-                        product,
-                        quantity
+                    st.subheader(
+                        product["Product"]
                     )
 
-                    st.success(
-                        "Added!"
+                    st.write(
+                        f"Brand: {product['Brand']}  |  "
+                        f"Type: {product['Type']}"
                     )
 
+                    st.write(
+                        f"Gender: {product['Gender']}  |  "
+                        f"Color: {product['Color']}  |  "
+                        f"Size: {product['Size']}"
+                    )
 
-# =========================================================
-# CART PAGE
-# =========================================================
+                with col2:
 
-elif page == "🛒 Cart":
+                    st.markdown(
+                        f"""
+                        <div class="price">
+                        {money(product["Price"])}
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
 
-    st.header("🛒 Shopping Cart")
+                    st.write(
+                        f"Stock: {product['Stock']}"
+                    )
+
+                with col3:
+
+                    quantity = st.number_input(
+                        "Qty",
+                        min_value=1,
+                        max_value=int(product["Stock"]),
+                        value=1,
+                        key=f"qty_{product['ID']}"
+                    )
+
+                    if st.button(
+                        "Add to Cart",
+                        key=f"add_{product['ID']}",
+                        use_container_width=True
+                    ):
+
+                        add_to_cart(
+                            product,
+                            quantity
+                        )
+
+                        st.success(
+                            "Added to cart"
+                        )
+
+    # =====================================================
+    # CART + BILL
+    # =====================================================
+
+    st.divider()
+
+    st.header("Shopping Cart & Bill")
 
     if not st.session_state.cart:
 
         st.info(
-            "Your cart is empty."
+            "Cart is empty. Search a product and click Add to Cart."
         )
 
     else:
 
-        for item in st.session_state.cart:
+        # -------------------------------------------------
+        # CART TABLE
+        # -------------------------------------------------
 
-            col1, col2, col3, col4 = st.columns(
-                [4, 1, 1, 1]
-            )
-
-            with col1:
-
-                st.write(
-                    f"**{item['name']}**"
-                )
-
-                st.caption(
-                    f"Size: {item['size']}"
-                )
-
-            with col2:
-
-                st.write(
-                    money(item["price"])
-                )
-
-            with col3:
-
-                new_qty = st.number_input(
-                    "Qty",
-                    min_value=1,
-                    max_value=50,
-                    value=int(item["qty"]),
-                    key=f"cart_qty_{item['id']}"
-                )
-
-                item["qty"] = new_qty
-
-            with col4:
-
-                if st.button(
-                    "Remove",
-                    key=f"remove_{item['id']}"
-                ):
-
-                    remove_from_cart(
-                        item["id"]
-                    )
-
-                    st.rerun()
-
-        st.divider()
-
-        st.subheader(
-            f"Cart Total: {money(cart_total())}"
-        )
-
-
-# =========================================================
-# BILLING PAGE
-# =========================================================
-
-elif page == "🧾 Billing":
-
-    st.header("🧾 VIP Billing")
-
-    if not st.session_state.cart:
-
-        st.warning(
-            "Cart is empty."
-        )
-
-    else:
-
-        customer = st.text_input(
-            "Customer Name",
-            "Walk-in Customer"
-        )
-
-        phone = st.text_input(
-            "Customer Phone"
-        )
-
-        st.subheader("Order")
-
-        rows = []
+        cart_rows = []
 
         for item in st.session_state.cart:
 
-            rows.append(
+            cart_rows.append(
                 {
-                    "Product": item["name"],
-                    "Size": item["size"],
-                    "Quantity": item["qty"],
-                    "Unit Price": money(item["price"]),
+                    "Product": item["Product"],
+                    "Size": item["Size"],
+                    "Qty": item["Quantity"],
+                    "Price": money(item["Price"]),
                     "Amount": money(
-                        item["price"] * item["qty"]
+                        item["Price"] *
+                        item["Quantity"]
                     )
                 }
             )
 
         st.dataframe(
-            pd.DataFrame(rows),
+            pd.DataFrame(cart_rows),
             use_container_width=True,
             hide_index=True
         )
 
-        subtotal = cart_total()
+        # -------------------------------------------------
+        # REMOVE ITEMS
+        # -------------------------------------------------
 
-        discount_percent = st.slider(
-            "Discount %",
-            min_value=0,
-            max_value=50,
-            value=0
-        )
+        st.subheader("Remove Product")
+
+        for item in st.session_state.cart:
+
+            col1, col2 = st.columns(
+                [5, 1]
+            )
+
+            with col1:
+
+                st.write(
+                    f"{item['Product']} × {item['Quantity']}"
+                )
+
+            with col2:
+
+                if st.button(
+                    "Remove",
+                    key=f"remove_{item['ID']}"
+                ):
+
+                    remove_from_cart(
+                        item["ID"]
+                    )
+
+                    st.rerun()
+
+        # -------------------------------------------------
+        # BILL INFORMATION
+        # -------------------------------------------------
+
+        st.divider()
+
+        st.subheader("Customer Information")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            customer = st.text_input(
+                "Customer Name",
+                value="Walk-in Customer"
+            )
+
+        with col2:
+
+            phone = st.text_input(
+                "Phone Number"
+            )
+
+        # -------------------------------------------------
+        # CALCULATIONS
+        # -------------------------------------------------
+
+        subtotal = cart_subtotal()
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            discount_percent = st.number_input(
+                "Discount %",
+                min_value=0.0,
+                max_value=50.0,
+                value=0.0,
+                step=1.0
+            )
+
+        with col2:
+
+            tax_percent = st.number_input(
+                "Tax %",
+                min_value=0.0,
+                max_value=30.0,
+                value=0.0,
+                step=1.0
+            )
 
         discount = (
             subtotal *
@@ -709,25 +743,27 @@ elif page == "🧾 Billing":
             100
         )
 
-        tax_percent = st.number_input(
-            "Tax %",
-            min_value=0.0,
-            max_value=30.0,
-            value=0.0,
-            step=1.0
+        taxable_amount = (
+            subtotal -
+            discount
         )
 
         tax = (
-            (subtotal - discount) *
+            taxable_amount *
             tax_percent /
             100
         )
 
         total = (
-            subtotal -
-            discount +
+            taxable_amount +
             tax
         )
+
+        # -------------------------------------------------
+        # BILL SUMMARY
+        # -------------------------------------------------
+
+        st.subheader("Bill Summary")
 
         col1, col2, col3, col4 = st.columns(4)
 
@@ -751,64 +787,14 @@ elif page == "🧾 Billing":
             money(total)
         )
 
-        st.session_state.checkout = {
-            "customer": customer,
-            "phone": phone,
-            "subtotal": subtotal,
-            "discount": discount,
-            "tax": tax,
-            "total": total
-        }
+        # -------------------------------------------------
+        # PAYMENT
+        # -------------------------------------------------
 
-        st.success(
-            "Billing information saved."
-        )
+        st.subheader("Payment")
 
-        st.info(
-            "Now go to Payment Center to complete payment."
-        )
-
-
-# =========================================================
-# PAYMENT CENTER
-# =========================================================
-
-elif page == "💳 Payment Center":
-
-    st.header("💳 Payment Center")
-
-    if not st.session_state.cart:
-
-        st.warning(
-            "Cart is empty."
-        )
-
-    elif not st.session_state.checkout:
-
-        st.warning(
-            "Please complete the Billing page first."
-        )
-
-    else:
-
-        checkout = st.session_state.checkout
-
-        total = checkout["total"]
-
-        st.markdown(
-            f"""
-            <div class="vip-box">
-                <h2>Amount Payable</h2>
-                <h1>{money(total)}</h1>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        st.divider()
-
-        payment = st.radio(
-            "Select Payment Method",
+        payment = st.selectbox(
+            "Payment Method",
             [
                 "Cash",
                 "JazzCash",
@@ -818,19 +804,11 @@ elif page == "💳 Payment Center":
             ]
         )
 
-        reference = ""
-
         if payment == "JazzCash":
 
-            st.subheader("📱 JazzCash")
-
             st.info(
-                "Demo JazzCash payment screen. "
-                "Real API integration requires merchant credentials."
-            )
-
-            st.text_input(
-                "JazzCash Mobile Number"
+                "Demo JazzCash option. Real payment API "
+                "requires merchant credentials."
             )
 
             reference = st.text_input(
@@ -839,15 +817,9 @@ elif page == "💳 Payment Center":
 
         elif payment == "Easypaisa":
 
-            st.subheader("📱 Easypaisa")
-
             st.info(
-                "Demo Easypaisa payment screen. "
-                "Real API integration requires merchant credentials."
-            )
-
-            st.text_input(
-                "Easypaisa Mobile Number"
+                "Demo Easypaisa option. Real payment API "
+                "requires merchant credentials."
             )
 
             reference = st.text_input(
@@ -863,15 +835,19 @@ elif page == "💳 Payment Center":
         elif payment == "Card / Online Payment":
 
             reference = st.text_input(
-                "Online Payment Reference"
+                "Payment Reference"
             )
 
         else:
 
             reference = "CASH"
 
+        # -------------------------------------------------
+        # GENERATE BILL
+        # -------------------------------------------------
+
         if st.button(
-            "✅ Confirm Payment & Generate VIP Bill",
+            "Generate VIP Bill",
             type="primary",
             use_container_width=True
         ):
@@ -879,69 +855,68 @@ elif page == "💳 Payment Center":
             if payment != "Cash" and not reference:
 
                 st.error(
-                    "Please enter the transaction/reference ID."
+                    "Please enter the payment reference."
                 )
 
             else:
 
-                invoice = st.session_state.invoice_number
+                invoice_no = (
+                    st.session_state.invoice_number
+                )
 
                 st.session_state.invoice_number += 1
 
-                pdf = create_pdf(
-                    invoice,
-                    checkout["customer"],
-                    checkout["phone"],
+                pdf_data = make_pdf(
+                    invoice_no,
+                    customer,
+                    phone,
                     st.session_state.cart,
-                    checkout["subtotal"],
-                    checkout["discount"],
-                    checkout["tax"],
-                    checkout["total"],
-                    payment,
-                    reference
+                    subtotal,
+                    discount,
+                    tax,
+                    total,
+                    payment
                 )
 
-                st.session_state.last_invoice = {
-                    "invoice": invoice,
-                    "customer": checkout["customer"],
-                    "total": checkout["total"],
+                st.session_state.last_bill = {
+                    "invoice": invoice_no,
+                    "customer": customer,
+                    "total": total,
                     "payment": payment,
-                    "reference": reference,
-                    "pdf": pdf.getvalue()
+                    "pdf": pdf_data
                 }
 
                 st.success(
-                    f"Payment successful! Invoice #{invoice} generated."
+                    f"Bill generated successfully! Invoice #{invoice_no}"
                 )
 
-                st.balloons()
+        # -------------------------------------------------
+        # SHOW GENERATED BILL
+        # -------------------------------------------------
 
-        invoice = st.session_state.last_invoice
+        if st.session_state.last_bill:
 
-        if invoice:
+            bill = st.session_state.last_bill
 
             st.divider()
 
             st.subheader(
-                f"🧾 VIP Invoice #{invoice['invoice']}"
+                f"VIP Bill #{bill['invoice']}"
             )
 
-            col1, col2, col3 = st.columns(3)
-
-            col1.metric(
-                "Customer",
-                invoice["customer"]
+            st.write(
+                f"Customer: **{bill['customer']}**"
             )
 
-            col2.metric(
-                "Payment",
-                invoice["payment"]
+            st.write(
+                f"Payment: **{bill['payment']}**"
             )
 
-            col3.metric(
-                "Total",
-                money(invoice["total"])
+            st.write(
+                f"Total: **{money(bill['total'])}**"
             )
 
-            st.download_button()
-    
+            st.download_button(
+                label="Download VIP Bill",
+                data=bill["pdf"],
+           
